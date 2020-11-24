@@ -101,9 +101,6 @@ def getThread( board, thread ):
 			com = each["com"]
 			if len(com) > 500:
 				next
-#			print( "RAW" )
-#			print( com )
-#			print
 			# replace linebreaks with spaces
 			com = re.sub('<br />|<br/>|<br>',' ',com)
 			# remove HTML
