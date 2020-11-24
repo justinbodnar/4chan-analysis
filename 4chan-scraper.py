@@ -2,22 +2,67 @@
 # by Justin Bodnar
 # monitors the word frequency of a board
 
-# imports
+###########
+# imports #
+###########
 from collections import OrderedDict
+from textblob import TextBlob as tb
 import traceback
 import requests
 import signal
 import string
+import math
 import html
 import json
 import sys
 import re
 
-# config
+##########
+# config #
+##########
 verbose = 0
 errors = True
 
-# wordFreq function
+
+###########################
+# TF-IDF helper functions #
+###########################
+# https://stevenloria.com/tf-idf/
+
+# term frequency function
+def tf(word, blob):
+	return blob.words.count(word) / len(blob.words)
+
+# returns num of documents containing a word
+def n_containing(word, bloblist):
+	return sum(1 for blob in bloblist if word in blob.words)
+
+# inverse document frequency function
+def idf(word, bloblist):
+	return math.log(len(bloblist) / (1 + n_containing(word, bloblist)))
+
+# computes the tf-idf score
+def tfidf_score(word, blob, bloblist):
+	return tf(word, blob) * idf(word, bloblist)
+
+##################
+# tfidf function #
+##################
+def tfidf( inputlist ):
+	# allows input to be a list of strings
+	bloblist = []
+	for entry in inputlist:
+		bloblist.append( tb(entry) )
+	for i, blob in enumerate(bloblist):
+		print("Top words in document {}".format(i + 1))
+		scores = {word: tfidf_score(word, blob, bloblist) for word in blob.words}
+		sorted_words = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+		for word, score in sorted_words[:3]:
+			print("\tWord: {}, TF-IDF: {}".format(word, round(score, 5)))
+
+#####################
+# wordFreq function #
+#####################
 # takes an array of strings
 # prints a frequency list
 # taken from https://code.tutsplus.com/tutorials/counting-word-frequency-in-a-file-using-python--cms-25965
@@ -39,7 +84,9 @@ def wordFreq ( text_array ):
 		if( frequency[words] > 1 ):
 			print( words, frequency[words] )
 
-# getThreads function
+#######################
+# getThreads function #
+#######################
 # takes a string of the board ( example: "pol" )
 # returns a list of thread IDs ( example [ 12345, 12346, 12347 ] )
 def getThreads( board ):
@@ -71,7 +118,9 @@ def getThreads( board ):
 	# return thread ids
 	return threads
 
-# getThread function
+######################
+# getThread function #
+######################
 # takes a board name,
 # and a thread id
 # returns the plaintext of the thread
@@ -89,10 +138,8 @@ def getThread( board, thread ):
 	r = requests.get( url )
 	# convert to JSON
 	j = json.loads( r.text )
-
 	# creat list for return
 	replies = []
-
 	# for each comment in the thread
 	for each in j["posts"]:
 		# try-catch for textless comments
@@ -129,11 +176,11 @@ def getThread( board, thread ):
 			com = com.lower()
 			if i < 10 and j < 10:
 				replies.append( com )
-			aszd.zdf
 		except Exception as e:
 			# print stacktrace
 			if errors:
 				traceback.print_exc()
+	# return array
 	return replies
 
 ################
@@ -153,10 +200,19 @@ threads = getThreads( board )
 
 # get all comments from all threads
 all_comments = []
+i = 0
 for thread in threads:
+	i += 1
+	if i > 10:
+		break
 	comments = getThread( board, thread )
+	temp_string = ""
 	for comment in comments:
-		all_comments.append( comment )
+		temp_string += comment + " "
+	all_comments.append( temp_string )
 
 # get word frequency
-wordFreq( all_comments )
+#wordFreq( all_comments )
+
+# get tfidf
+tfidf( all_comments )

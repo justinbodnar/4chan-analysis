@@ -4,6 +4,8 @@ git clone https://github.com/justinbodnar/4chan-analysis.git
 
 pip3 install -r requirements.txt
 
+python3 -m textblob.download_corpora
+
 python 4chan-scraper.py biz
 
 

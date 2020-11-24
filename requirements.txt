@@ -1,8 +1,2 @@
-collections
-stacktrace
+textblob
 requests
-string
-signal
-html
-json
-re
