@@ -4,6 +4,7 @@
 
 # imports
 from collections import OrderedDict
+import traceback
 import requests
 import signal
 import string
@@ -14,6 +15,7 @@ import re
 
 # config
 verbose = 0
+errors = True
 
 # wordFreq function
 # takes an array of strings
@@ -130,13 +132,11 @@ def getThread( board, thread ):
 			com = com.lower()
 			if i < 10 and j < 10:
 				replies.append( com )
+			aszd.zdf
 		except Exception as e:
-			# output
-			if verbose > 0:
-				print( e )
-			else:
-				# do nothing
-				x = 1337
+			# print stacktrace
+			if errors:
+				traceback.print_exc()
 	return replies
 
 ################
