@@ -1,6 +1,6 @@
 # 4chan Word Frequency Scraper
 
-A Python-based tool to monitor word frequency on a specified 4chan board, leveraging the 4chan API. Written by [Justin Bodnar](https://justinbodnar.com), this script processes posts, filters common words, and outputs the most frequently used words in descending order.
+A Python-based tool to monitor word frequency on a specified 4chan board. Written by [Justin Bodnar](https://justinbodnar.com), this script processes posts, filters common words, and outputs the most frequently used words in descending order.
 
 ---
 
