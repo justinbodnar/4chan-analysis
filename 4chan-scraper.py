@@ -1,218 +1,154 @@
-# 4chan scraper
-# by Justin Bodnar
-# monitors the word frequency of a board
+"""
+4chan Scraper
+Monitors word frequency on a specified board.
+By Justin Bodnar (justinbodnar.com)
+"""
 
-###########
-# imports #
-###########
-from collections import OrderedDict
-from textblob import TextBlob as tb
-import traceback
+# Imports
+from prettytable import PrettyTable
+from collections import Counter
+from bs4 import BeautifulSoup
+from datetime import datetime
 import requests
-import signal
-import string
-import math
-import html
-import json
-import sys
 import re
+import html
+import traceback
+import sys
 
-##########
-# config #
-##########
-verbose = 0
+# Config
+verbosity = 1  # 0: minimal output, 1: detailed output
 errors = True
+max_threads = 50  # Number of threads to process (set to None for all threads)
 
+def load_stop_words(file_path="words_to_ignore.txt"):
+	"""
+	Load stop words from a specified file.
+	
+	Args:
+		file_path (str): Path to the file containing stop words.
+	
+	Returns:
+		set: A set of stop words in lowercase.
+	"""
+	with open(file_path, "r") as f:
+		return set(word.strip().lower() for word in f.readlines())
 
-###########################
-# TF-IDF helper functions #
-###########################
-# https://stevenloria.com/tf-idf/
+stop_words = load_stop_words()
 
-# term frequency function
-def tf(word, blob):
-	return blob.words.count(word) / len(blob.words)
+def word_freq(text_array, board):
+	"""
+	Calculate and display word frequencies from a list of text data.
+	
+	Args:
+		text_array (list): List of strings containing text to analyze.
+		board (str): The name of the 4chan board being analyzed.
+	"""
+	text = " ".join(text_array)
+	words = re.findall(r'\b[a-z]{3,15}\b', text.lower())
+	filtered_words = [word for word in words if word not in stop_words]
+	frequency = Counter(filtered_words)
+	sorted_frequency = sorted(frequency.items(), key=lambda x: x[1], reverse=True)
 
-# returns num of documents containing a word
-def n_containing(word, bloblist):
-	return sum(1 for blob in bloblist if word in blob.words)
+	# Create a pretty table
+	table = PrettyTable()
+	table.field_names = ["Word", "Frequency"]
 
-# inverse document frequency function
-def idf(word, bloblist):
-	return math.log(len(bloblist) / (1 + n_containing(word, bloblist)))
+	# Add rows for the top 50 words
+	for word, count in sorted_frequency[:50]:
+		table.add_row([word, count])
 
-# computes the tf-idf score
-def tfidf_score(word, blob, bloblist):
-	return tf(word, blob) * idf(word, bloblist)
+	# Print the table
+	print("\nTop 50 Words:")
+	print(table)
 
-##################
-# tfidf function #
-##################
-def tfidf( inputlist ):
-	# allows input to be a list of strings
-	bloblist = []
-	for entry in inputlist:
-		bloblist.append( tb(entry) )
-	for i, blob in enumerate(bloblist):
-		print("Top words in document {}".format(i + 1))
-		scores = {word: tfidf_score(word, blob, bloblist) for word in blob.words}
-		sorted_words = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-		for word, score in sorted_words[:3]:
-			print("\tWord: {}, TF-IDF: {}".format(word, round(score, 5)))
-
-#####################
-# wordFreq function #
-#####################
-# takes an array of strings
-# prints a frequency list
-# taken from https://code.tutsplus.com/tutorials/counting-word-frequency-in-a-file-using-python--cms-25965
-def wordFreq ( text_array ):
-	# create one string from all input
-	text = ""
-	for subtext in text_array:
-		text += subtext + " "
-	# create frequency dictionary
-	frequency = {}
-	match_pattern = re.findall(r'\b[a-z]{3,15}\b', text)
-	for word in match_pattern:
-		count = frequency.get(word,0)
-		frequency[word] = count + 1
-	frequency_list = frequency.keys()
-	# sort by dict values
-#	for words in OrderedDict(sorted(frequency.items(), key=lambda kv: kv[1]['key3'], reverse=True)):
-	for words in dict(sorted(frequency.items(), key=lambda item: item[1])):
-		if( frequency[words] > 1 ):
-			print( words, frequency[words] )
-
-#######################
-# getThreads function #
-#######################
-# takes a string of the board ( example: "pol" )
-# returns a list of thread IDs ( example [ 12345, 12346, 12347 ] )
-def getThreads( board ):
-	global verbose
-	# create URL
-	url = "https://a.4cdn.org/"+board+"/threads.json"
-	# output
-	if verbose > 0:
-		print( "getThreads function called" )
-		print( "URL: " + url )
-	# get content of URL
-	r = requests.get( url )
-	# convert string into JSON
-	j = json.loads( r.text )
-
-	# create list for return
+def get_threads(board):
+	"""
+	Fetch thread IDs from a specified 4chan board.
+	
+	Args:
+		board (str): The name of the 4chan board to scrape.
+	
+	Returns:
+		list: A list of thread IDs.
+	"""
+	url = f"https://a.4cdn.org/{board}/threads.json"
+	if verbosity > 0:
+		print("\nFetching threads:", url)
+	response = requests.get(url)
 	threads = []
-
-	# for each page
-	for page in j:
-		# for each thread on page
+	titles = []
+	for page in response.json():
 		for thread in page["threads"]:
-			# add to threads list
-			threads.append( thread["no"] )
-	# output
-	if verbose > 0:
-		print( str(len(threads)) + " threads found" )
-
-	# return thread ids
+			threads.append(thread["no"])
+			if verbosity > 0 and "sub" in thread:
+				titles.append(thread["sub"])
+	if verbosity > 0:
+		print("\nThread Titles:")
+		for title in titles:
+			print(f"- {title}")
 	return threads
 
-######################
-# getThread function #
-######################
-# takes a board name,
-# and a thread id
-# returns the plaintext of the thread
-def getThread( board, thread ):
-	global verbose
-	# avoid type errors
-	thread = str(thread)
-	# create URL
-	url = "https://a.4cdn.org/"+board+"/thread/"+thread+".json"
-	# output
-	if verbose:
-		print( "getThread function called" )
-		print( "URL: " + url )
-	# get response from URL
-	r = requests.get( url )
-	# convert to JSON
-	j = json.loads( r.text )
-	# creat list for return
-	replies = []
-	# for each comment in the thread
-	for each in j["posts"]:
-		# try-catch for textless comments
-		try:
-			# remove HTML
-			com = each["com"]
-			if len(com) > 500:
-				next
-			# replace linebreaks with spaces
-			com = re.sub('<br />|<br/>|<br>',' ',com)
-			# remove HTML
-			cleanr = re.compile('<.*?>')
-			com = re.sub(cleanr, '', com)
-			# html decode entities
-			com = html.unescape( com )
-			# remove comment replies
-			i = 0
-			while ">>" in com and i < 10:
-				i += 1
-				start = com.find('>>')
-				end = com[start:].find(' ')
-				com = com[:start] + com[end+1:]
-			# remove urls
-			pattern = re.compile('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
-			com = pattern.sub('', com )
-			# remove non-alpha chars
-			com = re.sub(r'[^A-Za-z ]+', '', com)
-			# remove dupe spaces
-			j = 0
-			while "  " in com and j < 10:
-				j += 1
-				com = re.sub("  ", " ", com)
-			# make stirng lowercase
-			com = com.lower()
-			if i < 10 and j < 10:
-				replies.append( com )
-		except Exception as e:
-			# print stacktrace
-			if errors:
-				traceback.print_exc()
-	# return array
-	return replies
+def get_thread(board, thread_id):
+	"""
+	Fetch and clean text content from a specific 4chan thread.
+	
+	Args:
+		board (str): The name of the 4chan board.
+		thread_id (int): The thread ID to fetch content from.
+	
+	Returns:
+		list: A list of cleaned text content from the thread.
+	"""
+	url = f"https://a.4cdn.org/{board}/thread/{thread_id}.json"
+	if verbosity > 0:
+		print(f"Fetching thread: {url}")
+	try:
+		response = requests.get(url)
+		data = response.json()
+		replies = []
+		for post in data["posts"]:
+			try:
+				com = post.get("com", "")
+				com = html.unescape(com)
+				com = re.sub('<.*?>', '', com)
+				com = re.sub(r'>>\d+', '', com)
+				com = re.sub(r'http[s]?://\S+', '', com)
+				com = re.sub(r'[^a-zA-Z\s]', '', com)
+				com = re.sub(r'\s+', ' ', com).strip()
+				replies.append(com.lower())
+			except Exception as e:
+				if errors:
+					traceback.print_exc()
+		return replies
+	except Exception as e:
+		if errors:
+			traceback.print_exc()
+		return []
 
-################
-# main routine #
-################
-
-# get arguments
+# Main routine
 if len(sys.argv) < 2:
-	print( "You must enter a board to scrape" )
-	print( "Example: python scrape.py b" )
-	exit()
-else:
-	board = sys.argv[1]
+	print("You must enter a board to scrape")
+	print("Example: python3 4chan-scraper.py b")
+	sys.exit()
 
-# get all threads
-threads = getThreads( board )
+board = sys.argv[1]
+threads = get_threads(board)
+threads_to_process = threads[:max_threads] if max_threads else threads
 
-# get all comments from all threads
 all_comments = []
-i = 0
-for thread in threads:
-	i += 1
-	if i > 10:
-		break
-	comments = getThread( board, thread )
-	temp_string = ""
-	for comment in comments:
-		temp_string += comment + " "
-	all_comments.append( temp_string )
 
-# get word frequency
-#wordFreq( all_comments )
+for i, thread in enumerate(threads_to_process):
+	comments = get_thread(board, thread)
+	all_comments.append(" ".join(comments))
 
-# get tfidf
-tfidf( all_comments )
+# Output word frequency
+word_freq(all_comments, board)
+
+# Print verbose information at the end
+if verbosity > 0:
+	print(f"\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+	print(f"Analyzed Board: {board}")
+	print(f"Verbosity: {verbosity}")
+	print(f"Total Threads Analyzed: {len(threads_to_process)}")
+	if len(all_comments) > 0:
+		print(f"Total Comments Retrieved: {sum(len(c.split()) for c in all_comments):,} words\n")
