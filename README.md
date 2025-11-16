@@ -6,10 +6,10 @@ A Python-based tool to monitor word frequency on a specified 4chan board. Writte
 
 ## Features
 - Fetches posts from 4chan boards using the `requests` library.
-- Counts and ranks word usage by frequency, excluding common words from a customizable list `words_to_ignore.txt`.
-- Outputs the top 50 words in a clean table format.
+- Counts and ranks word usage by frequency, excluding common words defined in `words_to_ignore.txt` (with a safe fallback list if the file is missing).
+- Outputs the top 50 keywords, lexical metrics (unique words, lexical diversity, hapax legomena, etc.), and the most common bigrams and trigrams.
 - Configurable verbosity and thread limits via hardcoded variables:
-  - `verbose`: Controls output detail (0 for minimal, 2 for detailed).
+  - `verbosity`: Controls output detail (0 for minimal, 1 for detailed).
   - `max_threads`: Limits the number of threads processed (set to `None` to process all threads).
 
 ---
@@ -38,11 +38,11 @@ Replace `[board]` with the desired 4chan board (e.g., `b`, `biz`, `pol`).
 ## File Descriptions
 
 ### `4chan-scraper.py`
-- **Main script**: Scrapes a specified board and generates word frequency analysis.
-- **Verbose Mode**: Provides thread titles and detailed statistics when `verbose` is set to `1`.
-- **Custom Stop Words**: Utilizes `words_to_ignore.txt` to filter out common and unwanted words.
+- **Main script**: Scrapes a specified board and generates word/phrase analysis.
+- **Verbose Mode**: Provides thread titles and detailed statistics when `verbosity` is set to `1`.
+- **Custom Stop Words**: Utilizes `words_to_ignore.txt` to filter out common and unwanted words (with a built-in default set for resilience).
 - **Configuration Variables**:
-  - `verbose`: Adjust verbosity level (0 or 1).
+  - `verbosity`: Adjust verbosity level (0 or 1).
   - `max_threads`: Set the number of threads to analyze (default is 50).
 
 ### `words_to_ignore.txt`
